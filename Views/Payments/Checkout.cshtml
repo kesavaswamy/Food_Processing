@@ -1,0 +1,79 @@
+﻿@{
+    ViewData["Title"] = "Checkout";
+}
+
+<style>
+    .checkout-wrap { max-width:800px; margin:0 auto; }
+    .items { border:1px solid #eee; padding:12px; border-radius:8px; background:#fff; }
+    .item-row { display:flex; align-items:center; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #f0f0f0; }
+    .item-row:last-child { border-bottom: none; }
+    .total { font-size:1.2rem; font-weight:700; margin-top:12px; }
+    .pay-btn { background:#1f7a8c; color:#fff; padding:10px 16px; border-radius:6px; border:none; cursor:pointer; }
+</style>
+
+<div class="checkout-wrap">
+    <h2>Checkout</h2>
+    <div class="items" id="items"></div>
+    <div class="total">Total: ₹<span id="total">0</span></div>
+
+    <div style="margin-top:16px">
+        <div id="card-element"><!-- Stripe element --></div>
+        <div id="card-errors" role="alert" style="color:#b00020;margin-top:8px"></div>
+    </div>
+
+    <div style="margin-top:16px">
+        <button id="pay" class="pay-btn">Pay</button>
+    </div>
+    <div style="margin-top:12px;color:#666;font-size:0.9rem">Payment uses Stripe (test mode). Do not enter real card data in development.</div>
+</div>
+
+<script src="https://js.stripe.com/v3/"></script>
+<script>
+    const publishableKey = '@ViewData["StripePublishableKey"]';
+    const stripe = Stripe(publishableKey || '');
+    const elements = stripe.elements();
+    const card = elements.create('card');
+    card.mount('#card-element');
+
+    function renderCart() {
+        const itemsEl = document.getElementById('items');
+        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        itemsEl.innerHTML = '';
+        let total = 0;
+        cart.forEach(i => {
+            const row = document.createElement('div');
+            row.className = 'item-row';
+            row.innerHTML = `<div>${i.name} x ${i.qty}</div><div>₹${(i.price * i.qty).toFixed(2)}</div>`;
+            itemsEl.appendChild(row);
+            total += i.price * i.qty;
+        });
+        document.getElementById('total').textContent = total.toFixed(2);
+        return total;
+    }
+
+    document.getElementById('pay').addEventListener('click', async function() {
+        const total = renderCart();
+        if (total <= 0) { alert('Cart is empty'); return; }
+
+        // create payment intent on server (amount in INR) - convert to rupees as decimal
+        const resp = await fetch('/payments/create-payment-intent', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount: total, currency: 'inr' })
+        });
+        const data = await resp.json();
+        if (data.error) { document.getElementById('card-errors').textContent = data.error; return; }
+
+        const clientSecret = data.clientSecret;
+        const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card } });
+        if (result.error) {
+            document.getElementById('card-errors').textContent = result.error.message;
+        } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+            // clear cart
+            localStorage.removeItem('cart');
+            window.location = '/payments/success';
+        }
+    });
+
+    // initial render
+    renderCart();
+</script>

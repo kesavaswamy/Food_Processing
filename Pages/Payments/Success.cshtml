@@ -1,0 +1,32 @@
+@page
+@model SuccessModel
+@{
+    ViewData["Title"] = "Payment Success";
+}
+
+<h2>Payment succeeded</h2>
+<div id="order-details">
+    <p>Thank you. The payment was successful.</p>
+</div>
+
+@section Scripts {
+    <script>
+        (async function(){
+            const params = new URLSearchParams(window.location.search);
+            const id = params.get('orderId');
+            if (!id) return;
+            const resp = await fetch(`/api/payments/order/${id}`);
+            if (!resp.ok) return;
+            const order = await resp.json();
+            const el = document.getElementById('order-details');
+            el.innerHTML = `<div>Order: <strong>${order.id}</strong></div><div>Amount: ?${order.amount}</div>`;
+            const list = document.createElement('div');
+            order.items.forEach(i => {
+                const r = document.createElement('div');
+                r.textContent = `${i.name} x ${i.qty} = ?${(i.price * i.qty).toFixed(2)}`;
+                list.appendChild(r);
+            });
+            el.appendChild(list);
+        })();
+    </script>
+}

@@ -1,0 +1,145 @@
+@page
+@model CheckoutModel
+@{
+    ViewData["Title"] = "Checkout";
+}
+
+<style>
+  .checkout-wrap { max-width:1000px; margin:24px auto; padding:18px; background:#fff; border-radius:10px; box-shadow:0 6px 24px rgba(15,23,42,0.06); }
+  .checkout-grid { display:grid; grid-template-columns: 1fr 420px; gap:20px; align-items:start; }
+  .summary { border:1px solid #f0f0f0; padding:16px; border-radius:8px; background:#fbfdff; }
+  .summary h3 { margin-top:0; }
+  .item-row { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px dashed #eee; }
+  .summary .total { font-size:1.25rem; font-weight:700; margin-top:12px; }
+  .actions { display:flex; gap:10px; margin-top:14px; }
+  .pay-btn { background:#0f766e; color:#fff; padding:10px 16px; border-radius:8px; border:none; cursor:pointer; box-shadow:0 2px 8px rgba(15,23,42,0.08); }
+  .btn-cancel { background:transparent; color:#374151; padding:10px 14px; border-radius:8px; border:1px solid #e6eef0; cursor:pointer; box-shadow:none; transition:background .12s ease,color .12s ease,transform .06s ease; }
+  .btn-cancel:hover, .btn-cancel:focus { background:#f3faf9; color:#0f766e; transform:translateY(-1px); }
+  .payment-box { padding:16px; border:1px solid #f0f0f0; border-radius:8px; }
+  @@media(max-width:900px){ .checkout-grid{ grid-template-columns: 1fr; } }
+</style>
+
+<div class="checkout-wrap">
+  <h2>Checkout</h2>
+  <div class="checkout-grid">
+    <div class="summary">
+      <h3>Your order</h3>
+      <div id="items" aria-live="polite"></div>
+      <div class="total">Total: &#8377;<span id="total">0</span></div>
+      <div class="actions">
+        <!-- Use an anchor as primary navigation so cancel always works; JS will try history.back first -->
+        <a id="cancel-button" class="btn-cancel" href="/" role="button">Cancel</a>
+        <button id="pay" class="pay-btn" type="button">Pay now</button>
+      </div>
+      <div style="margin-top:10px;color:#6b7280;font-size:0.9rem">Click Cancel to return to product selection (your cart will be preserved).</div>
+    </div>
+
+    <div class="payment-box">
+      <h3>Payment details</h3>
+      <div id="card-element" style="margin-top:8px"><!-- Stripe element --></div>
+      <div id="card-errors" role="alert" style="color:#b00020;margin-top:12px"></div>
+      <div id="payment-sample" style="margin-top:12px;color:#374151;font-size:0.95rem;display:none">
+        <strong>Test card (sample):</strong>
+        <div>Card number: <code>4242 4242 4242 4242</code></div>
+        <div>Expiry: <code>12/34</code> CVC: <code>123</code></div>
+        <div style="margin-top:6px;color:#6b7280">Use the test publishable key to enable Stripe. If you don't have keys, you can still create an order.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+@section Scripts {
+    <script src="https://js.stripe.com/v3/"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            const publishableKey = '@Model.PublishableKey';
+            const payBtn = document.getElementById('pay');
+            const cancelBtn = document.getElementById('cancel-button');
+            const cardErrors = document.getElementById('card-errors');
+
+            function renderCart() {
+                const itemsEl = document.getElementById('items');
+                const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+                itemsEl.innerHTML = '';
+                let total = 0;
+                cart.forEach(i => {
+                    const price = parseFloat(i.price) || 0;
+                    const qty = parseInt(i.qty) || 0;
+                    const row = document.createElement('div');
+                    row.className = 'item-row';
+                    row.innerHTML = `<div>${i.name} x ${qty}</div> <div>&#8377; ${(price * qty).toFixed(2)}</div>`;
+                    itemsEl.appendChild(row);
+                    total += price * qty;
+                });
+                document.getElementById('total').textContent = total.toFixed(2);
+                return { total, cart };
+            }
+
+            if (cancelBtn) {
+                cancelBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    // prefer history.back to return to the previous page; fallback to product list
+                    if (window.history && window.history.length > 1) {
+                        window.history.back();
+                        // safety: after a short delay, if still on checkout, redirect to root
+                        setTimeout(function(){ if (window.location.pathname.toLowerCase().includes('/payments/checkout')) window.location.href = '/'; }, 300);
+                    } else {
+                        window.location.href = '/';
+                    }
+                });
+            }
+
+            if (!publishableKey) {
+                if (cardErrors) cardErrors.textContent = 'Stripe publishable key not configured. Payments disabled.';
+                if (payBtn) payBtn.disabled = true;
+                // show sample payment info so user knows how to test once keys are configured
+                const sample = document.getElementById('payment-sample'); if (sample) sample.style.display = 'block';
+                renderCart();
+                return;
+            }
+
+            let stripe = null;
+            let card = null;
+            try {
+                stripe = Stripe(publishableKey);
+                const elements = stripe.elements();
+                card = elements.create('card');
+                card.mount('#card-element');
+            } catch (e) {
+                console.error('Stripe init error', e);
+                if (cardErrors) cardErrors.textContent = 'Payment initialization failed.';
+                if (payBtn) payBtn.disabled = true;
+            }
+
+            if (payBtn) {
+                payBtn.addEventListener('click', async function () {
+                    const { total, cart } = renderCart();
+                    if (total <= 0) { alert('Cart is empty'); return; }
+
+                    const resp = await fetch('/api/payments/create-payment-intent', {
+                        method: 'POST', headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ amount: total, currency: 'inr', items: cart })
+                    });
+                    const data = await resp.json();
+                    if (data.error) { if (cardErrors) cardErrors.textContent = data.error; return; }
+
+                    const clientSecret = data.clientSecret;
+                    const orderId = data.orderId;
+
+                    if (!stripe || !card) { if (cardErrors) cardErrors.textContent = 'Payment not initialized.'; return; }
+
+                    const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card } });
+                    if (result.error) {
+                        if (cardErrors) cardErrors.textContent = result.error.message;
+                    } else if (result.paymentIntent && result.paymentIntent.status === 'succeeded') {
+                        localStorage.removeItem('cart');
+                        window.location = `/payments/success?orderId=${orderId}`;
+                    }
+                });
+            }
+
+            // initial render
+            renderCart();
+        });
+    </script>
+}

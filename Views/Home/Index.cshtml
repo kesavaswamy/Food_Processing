@@ -1,0 +1,146 @@
+﻿@{
+    ViewData["Title"] = "About Product";
+}
+<h1>@ViewData["Title"]</h1>
+<section class="about-section">
+    <div class="container">
+
+        <div class="about-header">
+            <h2>🌿 Welcome to Our Kitchen</h2>
+            <p>
+                Experience the taste of fresh, homemade traditional breakfast —
+                prepared with love, hygiene, and authentic recipes.
+                Ready to cook and ready to enjoy.
+            </p>
+        </div>
+
+        <h3 class="section-title">🫓 Our Special Products</h3>
+
+        <div class="product-grid">
+
+            <div class="product-card">
+                <h4>🥖 Soft Chapathi</h4>
+                <p>
+                    Made with high-quality wheat flour and prepared fresh daily.
+                    Soft, healthy, and perfect for breakfast or dinner.
+                </p>
+            </div>
+
+            <div class="product-card">
+                <h4>🥟 Fluffy Poori</h4>
+                <p>
+                    Golden, light, and crispy pooris that puff perfectly every time.
+                    Best enjoyed with curry or chutney.
+                </p>
+            </div>
+
+            <div class="product-card">
+                <h4>🥐 Layered Parota</h4>
+                <p>
+                    Traditional layered parotas with rich taste and texture.
+                    Just heat and serve — hotel style taste at home!
+                </p>
+            </div>
+
+            <div class="product-card">
+                <h4>🥣 Fresh Dosa Batter</h4>
+                <p>
+                    Prepared using premium rice and urad dal.
+                    Naturally fermented for soft dosas and crispy edges.
+                </p>
+            </div>
+
+        </div>
+    </div>
+</section>
+<script>
+// tabs behavior
+;(function(){
+  const links = document.querySelectorAll('.tab-link');
+  links.forEach(l=>l.addEventListener('click', function(e){
+    e.preventDefault();
+    links.forEach(x=>x.classList.remove('active'));
+    this.classList.add('active');
+    const tab = this.getAttribute('data-tab');
+    document.querySelectorAll('#home-tab, #products-tab').forEach(s=>s.style.display = 'none');
+    document.getElementById(tab).style.display = 'block';
+  }));
+})();
+
+    function updateTotals() {
+        const cards = document.querySelectorAll('.card');
+        let total = 0;
+        let count = 0;
+        const cart = [];
+        cards.forEach(card => {
+            const price = parseFloat(card.dataset.price);
+            const name = card.dataset.name;
+            const id = card.dataset.id;
+            const qty = parseInt(card.querySelector('.qty-input').value) || 0;
+            if (qty > 0) {
+                total += price * qty;
+                count += qty;
+                cart.push({ id, name, price, qty });
+            }
+        });
+        document.getElementById('total').textContent = total.toFixed(2);
+        document.getElementById('selected-count').textContent = count;
+        // store cart in localStorage for checkout page
+        localStorage.setItem('cart', JSON.stringify(cart));
+    }
+
+    document.querySelectorAll('.card').forEach(card => {
+        const inc = card.querySelector('.inc');
+        const dec = card.querySelector('.dec');
+        const input = card.querySelector('.qty-input');
+
+        inc.addEventListener('click', () => { input.value = Math.max(0, parseInt(input.value||0) + 1); updateTotals(); });
+        dec.addEventListener('click', () => { input.value = Math.max(0, parseInt(input.value||0) - 1); updateTotals(); });
+        input.addEventListener('change', () => { if (parseInt(input.value || 0) < 0) input.value = 0; updateTotals(); });
+    });
+
+    // rehydrate quantities from localStorage if returning from checkout
+    (function rehydrate(){
+        try {
+            const saved = JSON.parse(localStorage.getItem('cart')||'[]');
+            if (!saved || !saved.length) return;
+            saved.forEach(item => {
+                const card = document.querySelector(`.card[data-id="${item.id}"]`);
+                if (card) card.querySelector('.qty-input').value = item.qty;
+            });
+            updateTotals();
+        } catch(e) { console.warn('rehydrate cart failed', e); }
+    })();
+
+    document.getElementById('checkout').addEventListener('click', (e) => {
+        e.preventDefault();
+        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        if (!cart.length) {
+            alert('Please choose at least one item.');
+            return;
+        }
+        // redirect to checkout page; checkout reads cart from localStorage
+        window.location = '/payments/checkout';
+    });
+
+    // initialize
+    updateTotals();
+
+    // Try to load image files from multiple possible filenames in wwwroot/images
+    (function resolveImages(){
+        document.querySelectorAll('.card img[data-filenames]').forEach(img => {
+            const names = (img.getAttribute('data-filenames')||'').split(',').map(s=>s.trim());
+            // try each filename by issuing HEAD request
+            (async function tryFiles(){
+                for (const name of names) {
+                    try {
+                        const url = '/images/' + name;
+                        const r = await fetch(url, { method: 'HEAD' });
+                        if (r.ok) { img.src = url; return; }
+                    } catch(e) {}
+                }
+                // fallback: keep existing svg
+            })();
+        });
+    })();
+</script>

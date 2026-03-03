@@ -1,0 +1,126 @@
+﻿@page
+@{
+    ViewData["Title"] = "Products";
+}
+
+@{
+    var img = Url.Content("~/images/chapathi.svg");
+}
+
+<div class="products">
+
+    <div class="card" data-id="chapathi" data-name="Chapathi" data-price="40">
+        <img src="/images/chapathi.png" alt="Chapathi" />
+        <h3>Chapathi</h3>
+        <div class="price">₹40</div>
+
+        <div class="qty">
+            <button class="dec">−</button>
+            <input class="qty-input" type="number" value="0" min="0" />
+            <button class="inc">+</button>
+        </div>
+    </div>
+
+    <div class="card" data-id="poori" data-name="Poori" data-price="40">
+        <img src="/images/poori.png" alt="Poori" />
+        <h3>Poori</h3>
+        <div class="price">₹40</div>
+
+        <div class="qty">
+            <button class="dec">−</button>
+            <input class="qty-input" type="number" value="0" min="0" />
+            <button class="inc">+</button>
+        </div>
+    </div>
+
+    <div class="card" data-id="parota" data-name="Parota" data-price="70">
+        <img src="/images/parota.png" alt="Parota" />
+        <h3>Parota</h3>
+        <div class="price">₹70</div>
+
+        <div class="qty">
+            <button class="dec">−</button>
+            <input class="qty-input" type="number" value="0" min="0" />
+            <button class="inc">+</button>
+        </div>
+    </div>
+
+    <div class="card" data-id="dosa" data-name="Dosa" data-price="60">
+        <img src="/images/dosa.png" alt="Dosa" />
+        <h3>Dosa Batter</h3>
+        <div class="price">₹60</div>
+
+        <div class="qty">
+            <button class="dec">−</button>
+            <input class="qty-input" type="number" value="0" min="0" />
+            <button class="inc">+</button>
+        </div>
+    </div>
+   
+   
+</div>
+<div class="cart-bar">
+    <div>
+        <div>Total: <span class="subtotal">₹<span id="total">0</span></span></div>
+        <div style="font-size:0.9rem;color:#666">Selected items: <span id="selected-count">0</span></div>
+    </div>
+    <div>
+        <a href="#" id="checkout" class="checkout-btn">Checkout</a>
+    </div>
+</div>
+
+
+@section Scripts {
+<script>
+    // same cart & UI scripts
+    function updateTotals() {
+        const cards = document.querySelectorAll('.card');
+        let total = 0;
+        let count = 0;
+        const cart = [];
+        cards.forEach(card => {
+            const price = parseFloat(card.dataset.price);
+            const name = card.dataset.name;
+            const id = card.dataset.id;
+            const qty = parseInt(card.querySelector('.qty-input').value) || 0;
+            if (qty > 0) {
+                total += price * qty;
+                count += qty;
+                cart.push({ id, name, price, qty });
+            }
+        });
+        document.getElementById('total').textContent = total.toFixed(2);
+        document.getElementById('selected-count').textContent = count;
+        localStorage.setItem('cart', JSON.stringify(cart));
+    }
+
+    document.querySelectorAll('.card').forEach(card => {
+        const inc = card.querySelector('.inc');
+        const dec = card.querySelector('.dec');
+        const input = card.querySelector('.qty-input');
+        inc.addEventListener('click', () => { input.value = Math.max(0, parseInt(input.value||0) + 1); updateTotals(); });
+        dec.addEventListener('click', () => { input.value = Math.max(0, parseInt(input.value||0) - 1); updateTotals(); });
+        input.addEventListener('change', () => { if (parseInt(input.value || 0) < 0) input.value = 0; updateTotals(); });
+    });
+
+    (function rehydrate(){
+        try {
+            const saved = JSON.parse(localStorage.getItem('cart')||'[]');
+            if (!saved || !saved.length) return;
+            saved.forEach(item => {
+                const card = document.querySelector(`.card[data-id="${item.id}"]`);
+                if (card) card.querySelector('.qty-input').value = item.qty;
+            });
+            updateTotals();
+        } catch(e) { console.warn('rehydrate cart failed', e); }
+    })();
+
+    document.getElementById('checkout').addEventListener('click', (e) => {
+        e.preventDefault();
+        const cart = JSON.parse(localStorage.getItem('cart') || '[]');
+        if (!cart.length) { alert('Please choose at least one item.'); return; }
+        window.location = '/payments/checkout';
+    });
+    updateTotals();
+</script>
+}
