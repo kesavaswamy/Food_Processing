@@ -11,6 +11,8 @@ This project is designed with a focus on:
 
 <img width="1912" height="1021" alt="image" src="https://github.com/user-attachments/assets/648c5caf-8418-4ec8-9506-e27dd220971b" />
 
+<img width="1893" height="851" alt="image" src="https://github.com/user-attachments/assets/ddd9956d-a5a3-498f-9b75-7a1f966a0b84" />
+
 
 ---
 
